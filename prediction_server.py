@@ -1,3 +1,4 @@
+
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import base64
@@ -11,6 +12,7 @@ emotions = [
 
 model = load_model("models/emotion_model.keras")
 
+
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -21,12 +23,21 @@ class Handler(BaseHTTPRequestHandler):
             image = np.frombuffer(raw, dtype=np.uint8)
             image = image.reshape(1, 48, 48, 1).astype(np.float32) / 255.0
 
-            prediction = model(image, training=False).numpy()[0]
-            index = int(np.argmax(prediction))
+            predictions = model(image, training=False).numpy()[0]
+            highest_index = int(np.argmax(predictions))
+
+            # Convert model scores to percentages
+            scores = {
+                emotion: round(float(score * 100), 2)
+                for emotion, score in zip(emotions, predictions)
+            }
 
             result = {
-                "emotion": emotions[index],
-                "confidence": float(prediction[index] * 100)
+                "emotions": scores,
+                "highest_emotion": emotions[highest_index],
+                "confidence": round(
+                    float(predictions[highest_index] * 100), 2
+                )
             }
 
             data = json.dumps(result).encode()
@@ -39,6 +50,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             data = json.dumps({"error": str(error)}).encode()
             self.send_response(400)
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -46,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
+
 server = HTTPServer(("127.0.0.1", 8765), Handler)
 print("Emotion prediction server running on port 8765")
 server.serve_forever()
+
