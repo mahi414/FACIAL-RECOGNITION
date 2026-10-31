@@ -3,55 +3,52 @@ import numpy as np
 from PIL import Image
 from tensorflow.keras.models import load_model
 
-# Load trained model
-model = load_model("models/emotion_model.keras")
-
 emotions = [
-    "angry",
-    "disgust",
-    "fear",
-    "happy",
-    "neutral",
-    "sad",
-    "surprise"
+    "angry", "disgust", "fear", "happy",
+    "neutral", "sad", "surprise"
 ]
 
+X_test, y_test = [], []
 test_path = "dataset/test"
 
-X_test = []
-y_test = []
-
-# Load test images
+# Load and preprocess test images
 for label, emotion in enumerate(emotions):
-
     folder = os.path.join(test_path, emotion)
 
-    for filename in os.listdir(folder):
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(f"Missing folder: {folder}")
 
+    for filename in sorted(os.listdir(folder)):
         image_path = os.path.join(folder, filename)
 
-        image = Image.open(image_path).convert("L")
+        try:
+            with Image.open(image_path) as img:
+                image = np.array(
+                    img.convert("L").resize((48, 48)),
+                    dtype=np.float32
+                )
+            X_test.append(image)
+            y_test.append(label)
+        except (OSError, ValueError):
+            print("Skipping unreadable image:", image_path)
 
-        image = np.array(image)
-
-        X_test.append(image)
-        y_test.append(label)
-
-# Convert to NumPy arrays
-X_test = np.array(X_test)
+X_test = np.array(X_test, dtype=np.float32)[..., np.newaxis] / 255.0
 y_test = np.array(y_test)
 
-# Normalize
-X_test = X_test / 255.0
+print("Test images:", len(X_test))
 
-# Add grayscale channel
-X_test = X_test.reshape(-1, 48, 48, 1)
+for model_path in [
+    "models/emotion_model.keras",
+    "models/emotion_model_candidate.keras"
+]:
+    print("\nTesting:", model_path)
 
-print("Test images:", X_test.shape)
-print("Test labels:", y_test.shape)
+    if not os.path.exists(model_path):
+        print("Model not found. Skipping.")
+        continue
 
-# Evaluate model
-loss, accuracy = model.evaluate(X_test, y_test)
+    model = load_model(model_path)
+    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
 
-print("Test Loss:", loss)
-print("Test Accuracy:", accuracy)
+    print(f"Test loss: {loss:.4f}")
+    print(f"Test accuracy: {accuracy * 100:.2f}%")
