@@ -29,7 +29,8 @@ try:
     )
 
     # Wait until prediction server is ready
-    for attempt in range(30):
+    for attempt in range(120
+):
 
         if prediction_process.poll() is not None:
             raise RuntimeError(
